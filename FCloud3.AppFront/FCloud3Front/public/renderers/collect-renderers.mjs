@@ -1,4 +1,4 @@
-#!/usr/bin/env tsx
+#!/usr/bin/env node
 /**
  * 开发脚本：下载 KaTeX、Mermaid、PrismJS 的渲染资源到 public/renderers，
  * 用于生产环境自托管，避免运行时依赖外部 CDN。
@@ -7,7 +7,7 @@
  * Mermaid 的 npm tarball 过大，改为直链下载其压缩后的 dist 产物。
  *
  * 用法：
- *   pnpm collect-renderers
+ *   node collect-renderers.mjs
  */
 import fs from 'node:fs/promises';
 import path from 'node:path';
@@ -21,34 +21,13 @@ const execFileAsync = promisify(execFile);
 const __dirname = path.dirname(fileURLToPath(import.meta.url));
 const OUT_DIR = __dirname;
 
-const VERSIONS = {
+const VERSIONS = Object.freeze({
     katex: '0.17.0',
     mermaid: '11.15.0',
     prism: '1.30.0',
-} as const;
+});
 
-type CopySpec = {
-    from: string; // tarball 内 package/ 下的相对路径
-    to: string; // OUT_DIR 下的相对路径
-};
-
-type FileSpec = {
-    url: string;
-    to: string; // OUT_DIR 下的相对路径
-};
-
-type PackageSpec = {
-    name: string;
-    version: string;
-    // 二选一：tarball 批量提取，或直接下载文件
-    tarball?: {
-        url: string;
-        copy: CopySpec[];
-    };
-    files?: FileSpec[];
-};
-
-const packages: PackageSpec[] = [
+const packages = [
     {
         name: 'katex',
         version: VERSIONS.katex,
@@ -91,7 +70,7 @@ const packages: PackageSpec[] = [
     },
 ];
 
-async function fetchBuffer(url: string): Promise<Buffer> {
+async function fetchBuffer(url) {
     const timeoutMs = 5 * 60 * 1000; // 单个下载最多 5 分钟
     const controller = new AbortController();
     const timer = setTimeout(() => controller.abort(), timeoutMs);
@@ -112,7 +91,7 @@ async function fetchBuffer(url: string): Promise<Buffer> {
     }
 }
 
-async function ensureTarAvailable(): Promise<void> {
+async function ensureTarAvailable() {
     try {
         await execFileAsync('tar', ['--version']);
     } catch {
@@ -120,7 +99,7 @@ async function ensureTarAvailable(): Promise<void> {
     }
 }
 
-async function copyRecursive(src: string, dest: string): Promise<number> {
+async function copyRecursive(src, dest) {
     const stat = await fs.stat(src);
     if (stat.isDirectory()) {
         await fs.mkdir(dest, { recursive: true });
@@ -135,7 +114,7 @@ async function copyRecursive(src: string, dest: string): Promise<number> {
     return 1;
 }
 
-async function cleanOutputTargets(): Promise<void> {
+async function cleanOutputTargets() {
     const targets = [`katex@${VERSIONS.katex}`, `mermaid@${VERSIONS.mermaid}`, `prismjs@${VERSIONS.prism}`];
     await Promise.all(
         targets.map(async (target) => {
@@ -149,10 +128,7 @@ async function cleanOutputTargets(): Promise<void> {
     );
 }
 
-async function processTarballPackage(
-    pkg: PackageSpec,
-    tempRoot: string
-): Promise<{ name: string; files: number }> {
+async function processTarballPackage(pkg, tempRoot) {
     if (!pkg.tarball) {
         throw new Error(`package ${pkg.name} 缺少 tarball 配置`);
     }
@@ -181,7 +157,7 @@ async function processTarballPackage(
     return { name: pkg.name, files: totalFiles };
 }
 
-async function processFilePackage(pkg: PackageSpec): Promise<{ name: string; files: number }> {
+async function processFilePackage(pkg) {
     if (!pkg.files) {
         throw new Error(`package ${pkg.name} 缺少 files 配置`);
     }
@@ -198,10 +174,7 @@ async function processFilePackage(pkg: PackageSpec): Promise<{ name: string; fil
     return { name: pkg.name, files: pkg.files.length };
 }
 
-async function processPackage(
-    pkg: PackageSpec,
-    tempRoot: string
-): Promise<{ name: string; files: number }> {
+async function processPackage(pkg, tempRoot) {
     console.log(`\n[${pkg.name}@${pkg.version}]`);
 
     if (pkg.tarball) {
@@ -213,7 +186,7 @@ async function processPackage(
     throw new Error(`package ${pkg.name} 缺少 source 配置`);
 }
 
-async function main(): Promise<void> {
+async function main() {
     await ensureTarAvailable();
     await fs.mkdir(OUT_DIR, { recursive: true });
 
@@ -225,7 +198,7 @@ async function main(): Promise<void> {
     console.log(`临时目录: ${tempRoot}`);
 
     try {
-        const results: { name: string; files: number }[] = [];
+        const results = [];
         for (const pkg of packages) {
             const result = await processPackage(pkg, tempRoot);
             results.push(result);

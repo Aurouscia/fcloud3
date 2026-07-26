@@ -18,8 +18,29 @@
 **/node_modules
 **/npm-debug.log
 **/obj
+**/public/renderers/katex@*
+**/public/renderers/mermaid@*
+**/public/renderers/prismjs@*
 **/secrets.dev.yaml
 **/values.dev.yaml
+
+# 本地/运行时数据与日志
+**/Data
+**/Logs
+**/*.log
+
+# 构建产物
+**/dist
+**/coverage
+**/*.tsbuildinfo
+
+# 测试输出
+**/TestResults
+
+# IDE 与本地调试配置
+**/.idea
+**/launchSettings.json
+
 LICENSE
 README.md
 !**/.gitignore

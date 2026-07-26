@@ -9,7 +9,7 @@
     "build-here": "tsx build.ts --here",
     "type-check": "tsx build.ts --ts-check-only",
     "toggleEnvLocal": "node env/toggleLocalEnvFile.cjs",
-    "collect-renderers": "tsx public/renderers/collect-renderers.ts"
+    "collect-renderers": "node public/renderers/collect-renderers.mjs"
   },
   "engines": {
     "node": ">=24",

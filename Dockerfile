@@ -1,6 +1,13 @@
 # 请启动时务必将/app/Data目录mount到宿主机，或设为volumn
 # docker部署遇到任何问题请提出issue，或加入readme中的qq群反馈
 
+# 预收集渲染器资源（与前端业务源码解耦，可独立缓存）
+FROM mcr.azure.cn/azurelinux/base/nodejs:24 AS renderers
+RUN tdnf install -y tar
+WORKDIR "/app/FCloud3.AppFront/FCloud3Front"
+COPY "./FCloud3.AppFront/FCloud3Front/public/renderers/collect-renderers.mjs" "./public/renderers/collect-renderers.mjs"
+RUN node ./public/renderers/collect-renderers.mjs
+
 # 构建vue前端
 FROM mcr.azure.cn/azurelinux/base/nodejs:24 AS febuild
 RUN tdnf install -y tar
@@ -12,7 +19,7 @@ COPY "./FCloud3.AppFront/FCloud3Front/pnpm-lock.yaml" "./pnpm-lock.yaml"
 COPY "./FCloud3.AppFront/FCloud3Front/pnpm-workspace.yaml" "./pnpm-workspace.yaml"
 RUN pnpm install --frozen-lockfile
 COPY "./FCloud3.AppFront/FCloud3Front" "."
-RUN pnpm collect-renderers
+COPY --from=renderers /app/FCloud3.AppFront/FCloud3Front/public/renderers ./public/renderers
 WORKDIR "/app/FCloud3.AppFront/FCloud3Plugins"
 COPY "./FCloud3.AppFront/FCloud3Plugins" "."
 RUN node buildPlugins.mjs
