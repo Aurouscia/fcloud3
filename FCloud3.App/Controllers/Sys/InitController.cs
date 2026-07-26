@@ -258,17 +258,32 @@ namespace FCloud3.App.Controllers.Sys
 
         public IActionResult GroupGC()
         {
-            var groupsWithAnyRelation = _context.UserToGroups
+            var groupsWithFormalMembers = _context.UserToGroups
+                .Where(x => x.Type == UserToGroupType.Member)
                 .Select(x => x.GroupId)
                 .Distinct();
             var emptyGroups = _context.UserGroups
-                .Where(x => !groupsWithAnyRelation.Contains(x.Id))
+                .Where(x => !groupsWithFormalMembers.Contains(x.Id))
                 .ToList();
             if (emptyGroups.Count == 0)
                 return this.ApiResp("没有需要清理的空用户组");
             _context.UserGroups.RemoveRange(emptyGroups);
             _context.SaveChanges();
             return this.ApiResp($"已清理 {emptyGroups.Count} 个空用户组");
+        }
+
+        [HttpGet("{name}")]
+        public IActionResult GroupDelete(string name)
+        {
+            var group = _context.UserGroups.FirstOrDefault(x => x.Name == name);
+            if (group is null)
+                return this.ApiFailedResp("未找到指定名称的用户组");
+
+            var relations = _context.UserToGroups.Where(x => x.GroupId == group.Id).ToList();
+            _context.UserToGroups.RemoveRange(relations);
+            _context.UserGroups.Remove(group);
+            _context.SaveChanges();
+            return this.ApiResp($"已删除用户组 {group.Name}");
         }
 
         public IActionResult SetUpdateToLastActive()

@@ -42,6 +42,7 @@ async function answerInvitation(id:number,accept:boolean){
 function onDissolved(){
     lookingDetail.value = undefined;
     router.replace({name:'userGroup'});
+    loadData();
 }
 
 
