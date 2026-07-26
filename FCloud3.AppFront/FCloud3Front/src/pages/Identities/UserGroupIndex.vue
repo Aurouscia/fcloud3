@@ -39,6 +39,10 @@ async function answerInvitation(id:number,accept:boolean){
         await detail.value?.loadData();
     }
 }
+function onDissolved(){
+    lookingDetail.value = undefined;
+    router.replace({name:'userGroup'});
+}
 
 
 const createSideber = useTemplateRef('createSideber')
@@ -133,11 +137,11 @@ onUnmounted(()=>{
             <Loading v-else></Loading>
         </div>
         <div v-if="wide()" class="detail">
-            <UserGroupDetail ref="detail" :id="lookingDetail||0" @need-refresh="loadData">
+            <UserGroupDetail ref="detail" :id="lookingDetail||0" @need-refresh="loadData" @dissolved="onDissolved">
             </UserGroupDetail>
         </div>
         <SideBar v-else ref="sidebar">
-            <UserGroupDetail :id="lookingDetail||0" @need-refresh="loadData"></UserGroupDetail>
+            <UserGroupDetail :id="lookingDetail||0" @need-refresh="loadData" @dissolved="onDissolved"></UserGroupDetail>
         </SideBar>
     </div>
     <SideBar ref="createSideber">

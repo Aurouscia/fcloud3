@@ -1,4 +1,4 @@
-﻿using Aurouscia.FicKit.Currency.Database;
+using Aurouscia.FicKit.Currency.Database;
 using FCloud3.App.Services.Utils;
 using FCloud3.DbContexts;
 using FCloud3.Entities.Files;
@@ -254,6 +254,21 @@ namespace FCloud3.App.Controllers.Sys
                 return this.ApiResp();
             }
             return this.ApiFailedResp("失败");
+        }
+
+        public IActionResult GroupGC()
+        {
+            var groupsWithAnyRelation = _context.UserToGroups
+                .Select(x => x.GroupId)
+                .Distinct();
+            var emptyGroups = _context.UserGroups
+                .Where(x => !groupsWithAnyRelation.Contains(x.Id))
+                .ToList();
+            if (emptyGroups.Count == 0)
+                return this.ApiResp("没有需要清理的空用户组");
+            _context.UserGroups.RemoveRange(emptyGroups);
+            _context.SaveChanges();
+            return this.ApiResp($"已清理 {emptyGroups.Count} 个空用户组");
         }
 
         public IActionResult SetUpdateToLastActive()

@@ -48,6 +48,12 @@ async function leaveGroup() {
         emit('needRefresh');
     }
 }
+async function dissolveGroup() {
+    var res = await api.identites.userGroup.dissolve(props.id);
+    if(res){
+        emit('dissolved');
+    }
+}
 async function editInfo() {
     if(!info.value){return;}
     var res = await api.identites.userGroup.editExe(info.value)
@@ -76,6 +82,7 @@ async function setShowLabel(e:MouseEvent) {
 
 const emit = defineEmits<{
     (e:'needRefresh'):void
+    (e:'dissolved'):void
 }>()
 defineExpose({loadData})
 
@@ -135,6 +142,7 @@ watch(props,async ()=>{
                     <td colspan="2"><button @click="editInfo">保存</button></td>
                 </tr>
             </tbody></table>
+            <LongPress v-if="data.CanEdit" :reached="dissolveGroup" class="cancel">长按解散本组</LongPress>
             <LongPress v-if="data.IsMember" :reached="leaveGroup" class="cancel">长按退出本组</LongPress>
             <div v-else class="joinHint">要加入用户组，请联系组长邀请你</div>
         </div>

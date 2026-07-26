@@ -1,4 +1,4 @@
-﻿using FCloud3.Entities.Identities;
+using FCloud3.Entities.Identities;
 using FCloud3.Repos.Identities;
 using System.Linq;
 using FCloud3.Services.Etc;
@@ -178,6 +178,12 @@ namespace FCloud3.Services.Identities
         }
         public bool RemoveUserFromGroup(int userId, int groupId, out string? errmsg)
         {
+            var owner = _userGroupRepo.GetOwnerIdById(groupId);
+            if (owner == userId)
+            {
+                errmsg = "组长禁止移出自己";
+                return false;
+            }
             return _userToGroupRepo.RemoveUserFromGroup(userId, groupId, out errmsg);
         }
         public bool Leave(int groupId, out string? errmsg)
