@@ -1,4 +1,4 @@
-﻿using FCloud3.DbContexts;
+using FCloud3.DbContexts;
 using FCloud3.Entities.Wiki;
 using FCloud3.Repos.Etc;
 using System.Text.RegularExpressions;
@@ -57,6 +57,21 @@ namespace FCloud3.Repos.Wiki
             UpdateWikiItemRefLu(now);
             return item.Id;
         }
+        public bool StageAdd(WikiItem item, out string? errmsg, int? overrideOwnerUserId = null)
+        {
+            if (!InfoCheck(item, false, out errmsg))
+                return false;
+            item.OwnerUserId = overrideOwnerUserId ?? _userIdProvider.Get();
+            var now = DateTime.Now;
+            item.LastActive = now;
+            base.BatchPrepare([item], now);
+            return true;
+        }
+        public void NotifyRefUpdated()
+        {
+            UpdateWikiItemRefLu(DateTime.Now);
+        }
+
         public bool TryUpdate(WikiItem item, out string? errmsg)
         {
             if (!InfoCheck(item, true, out errmsg))

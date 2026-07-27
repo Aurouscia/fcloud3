@@ -1,4 +1,4 @@
-﻿using FCloud3.DbContexts;
+using FCloud3.DbContexts;
 using FCloud3.Entities.Files;
 using FCloud3.Entities.Table;
 using FCloud3.Entities.TextSection;
@@ -233,6 +233,10 @@ namespace FCloud3.Services.Etc.Split
 
             foreach (var wiki in importedWikis)
             {
+                // 每个词条独立处理，清理变更追踪器，避免上一个词条残留的已追踪实体
+                // 与当前词条的新实体发生主键冲突
+                wikiItemRepo.ChangeTracker.Clear();
+
                 string? title = wiki.Info.Title;
                 string? urlPathName = wiki.Info.UrlPathName;
                 if (string.IsNullOrWhiteSpace(title) || string.IsNullOrWhiteSpace(urlPathName))
@@ -260,46 +264,44 @@ namespace FCloud3.Services.Etc.Split
                     LastActive = wiki.Info.LastActive
                 };
 
-                int createdWikiId = wikiItemRepo.TryAddAndGetId(newWiki, out var createErrmsg, targetUserId);
-                if (createdWikiId <= 0)
-                {
-                    errmsg = createErrmsg ?? "创建词条失败";
-                    continue;
-                }
-
                 string? paraErrmsg = null;
                 bool paraSuccess = transaction.DoTransaction(() =>
                 {
-                    int order = 0;
+                    if (!wikiItemRepo.StageAdd(newWiki, out paraErrmsg, targetUserId))
+                        return false;
+
+                    var textSections = new List<TextSection>();
+                    var freeTables = new List<FreeTable>();
+                    var fileItems = new List<FileItem>();
+                    var paraInfos = new List<(ExportedWiki.ExportedWikiPara Source, TextSection? Text, FreeTable? Table, FileItem? File, int ExistingFileId)>();
+
                     foreach (var para in wiki.Paras)
                     {
-                        int underlyingId = 0;
                         if (para.ParaType == WikiParaType.Text)
                         {
-                            underlyingId = textSectionRepo.AddDefaultAndGetId();
-                            if (underlyingId > 0)
+                            var content = para.Data ?? "";
+                            var brief = content.Length >= 30
+                                ? string.Concat(content.AsSpan(0, 27), "...")
+                                : content;
+                            var textSection = new TextSection
                             {
-                                var content = para.Data ?? "";
-                                var brief = content.Length >= 30
-                                    ? string.Concat(content.AsSpan(0, 27), "...")
-                                    : content;
-                                textSectionRepo.TryChangeContent(underlyingId, content, brief, out _);
-                                var title = para.ObjName ?? "";
-                                if (!string.IsNullOrEmpty(title))
-                                {
-                                    textSectionRepo.TryChangeTitle(underlyingId, title, out _);
-                                }
-                            }
+                                Title = para.ObjName ?? "",
+                                Content = content,
+                                ContentBrief = brief
+                            };
+                            textSections.Add(textSection);
+                            paraInfos.Add((para, textSection, null, null, 0));
                         }
                         else if (para.ParaType == WikiParaType.Table)
                         {
                             var tableData = FreeTableDataConvert.Deserialize(para.Data);
-                            underlyingId = freeTableRepo.TryCreateWithContent(tableData, para.ObjName ?? "", out var tableErrmsg);
-                            if (underlyingId <= 0)
+                            if (!freeTableRepo.StageCreateWithContent(tableData, para.ObjName ?? "", out var table, out var tableErrmsg))
                             {
                                 paraErrmsg = tableErrmsg ?? "创建表格失败";
                                 return false;
                             }
+                            freeTables.Add(table!);
+                            paraInfos.Add((para, null, table, null, 0));
                         }
                         else if (para.ParaType == WikiParaType.File)
                         {
@@ -342,7 +344,7 @@ namespace FCloud3.Services.Etc.Split
                                         .FirstOrDefault();
                                     if (existingFile is not null)
                                     {
-                                        underlyingId = existingFile.Id;
+                                        paraInfos.Add((para, null, null, null, existingFile.Id));
                                     }
                                     else
                                     {
@@ -355,12 +357,8 @@ namespace FCloud3.Services.Etc.Split
                                         };
                                         if (storage.Save(fileStream, newFile.StorePathName, out var storageErrmsg))
                                         {
-                                            underlyingId = fileItemRepo.TryAddAndGetId(newFile, out var fileErrmsg);
-                                            if (underlyingId <= 0)
-                                            {
-                                                paraErrmsg = fileErrmsg ?? "保存文件失败";
-                                                return false;
-                                            }
+                                            fileItems.Add(newFile);
+                                            paraInfos.Add((para, null, null, newFile, 0));
                                         }
                                         else
                                         {
@@ -376,17 +374,28 @@ namespace FCloud3.Services.Etc.Split
                                 }
                             }
                         }
-
-                        var wikiPara = new WikiPara
-                        {
-                            WikiItemId = createdWikiId,
-                            ObjectId = underlyingId,
-                            Type = para.ParaType,
-                            Order = order++,
-                            NameOverride = para.ParaName
-                        };
-                        wikiParaRepo.AddAndGetId(wikiPara);
                     }
+
+                    textSectionRepo.BatchPrepare(textSections);
+                    freeTableRepo.BatchPrepare(freeTables);
+                    fileItemRepo.BatchPrepare(fileItems);
+
+                    // 第一次保存：让 WikiItem、TextSection、FreeTable、FileItem 获得真实 Id
+                    wikiItemRepo.SaveChanges();
+
+                    // 第二次保存：用真实 Id 创建 WikiPara
+                    int order = 0;
+                    var wikiParasToAdd = paraInfos.Select(info => new WikiPara
+                    {
+                        WikiItemId = newWiki.Id,
+                        ObjectId = info.Text?.Id ?? info.Table?.Id ?? info.File?.Id ?? info.ExistingFileId,
+                        Type = info.Source.ParaType,
+                        Order = order++,
+                        NameOverride = info.Source.ParaName
+                    }).ToList();
+                    wikiParaRepo.BatchPrepare(wikiParasToAdd);
+                    wikiItemRepo.SaveChanges();
+
                     return true;
                 });
                 if (paraErrmsg is not null)
@@ -394,13 +403,8 @@ namespace FCloud3.Services.Etc.Split
 
                 if (paraSuccess)
                 {
-                    wikiItemRepo.UpdateTimeAndLuAndWikiActive(createdWikiId, true);
+                    wikiItemRepo.NotifyRefUpdated();
                     successCount++;
-                }
-                else
-                {
-                    // 如果段落创建失败，删除已创建的词条
-                    wikiItemRepo.TryRemove(newWiki, out _);
                 }
             }
 

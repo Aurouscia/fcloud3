@@ -1,4 +1,4 @@
-﻿using FCloud3.DbContexts;
+using FCloud3.DbContexts;
 using FCloud3.Entities;
 using FCloud3.Repos.Etc;
 using FCloud3.Repos.Etc.Index;
@@ -210,6 +210,17 @@ namespace FCloud3.Repos
         }
         protected virtual void AddRange(List<T> items, DateTime? time = null)
         {
+            BatchPrepare(items, time);
+            _context.SaveChanges();
+            AfterDataChange();
+        }
+
+        /// <summary>
+        /// 将实体标记为 Added 并填充 Created/Updated/CreatorUserId，但不调用 SaveChanges。
+        /// 适用于外部需要批量控制保存时机的场景。
+        /// </summary>
+        public virtual void BatchPrepare(List<T> items, DateTime? time = null)
+        {
             int uid = _userIdProvider.Get();
             //仅获取一次当前时间才能确保完全一致，
             //可通过判断创建时间==更新时间来判断该对象是否新建
@@ -222,8 +233,6 @@ namespace FCloud3.Repos
                 item.CreatorUserId = uid;
                 _context.Add(item);
             }
-            _context.SaveChanges();
-            AfterDataChange();
         }
         protected int AddAndGetId(T item)
         {

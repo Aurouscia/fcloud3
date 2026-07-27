@@ -1,4 +1,4 @@
-﻿using Aurouscia.TableEditor.Core;
+using Aurouscia.TableEditor.Core;
 using FCloud3.DbContexts;
 using FCloud3.Entities.Table;
 using FCloud3.Entities.Wiki;
@@ -81,6 +81,22 @@ namespace FCloud3.Repos.Table
             model.Brief = briefJson;
             model.Data = FreeTableDataConvert.Serialize(data);
             return base.AddAndGetId(model);
+        }
+        public bool StageCreateWithContent(AuTable data, string name, out FreeTable? model, out string? errmsg)
+        {
+            if (!NameCheck(name, out errmsg))
+            {
+                model = null;
+                return false;
+            }
+            var brief = Brief(data.Cells);
+            model = new FreeTable();
+            model.Name = name;
+            model.SetBrief(brief);
+            model.SetData(data);
+            base.BatchPrepare([model]);
+            errmsg = null;
+            return true;
         }
         private FreeTableBrief Brief(List<List<string?>?>? cells)
         {
