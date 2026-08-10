@@ -81,7 +81,7 @@ onMounted(async()=>{
     </h1>
     <div class="list">
         <div v-for="w in data.HomelessWikis">
-            <RouterLink :to="jumpToWikiLocationsRoute(w[1])" target="_blank" class="put">
+            <RouterLink :to="jumpToWikiLocationsRoute(w[1])" class="put">
                 放置
             </RouterLink>
             <RouterLink :to="jumpToViewWikiRoute(w[1])" target="_blank">

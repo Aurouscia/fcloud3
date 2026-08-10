@@ -4,6 +4,7 @@ import { injectApi } from '@/provides';
 import { onMounted, ref } from 'vue';
 import Loading from '@/components/Loading.vue';
 import { useFilesRoutesJump } from '../Files/routes/routesJump';
+import { useWikiParsingRoutesJump } from '../WikiParsing/routes/routesJump';
 import Search from '@/components/Search.vue';
 import { useRouter } from 'vue-router';
 
@@ -12,7 +13,16 @@ const props = defineProps<{
 }>();
 
 const { jumpToDirFromId } = useFilesRoutesJump();
+const { jumpToViewWiki } = useWikiParsingRoutesJump();
 const router = useRouter();
+
+function done(){
+    if(window.history.state?.back){
+        router.back();
+    }else{
+        jumpToViewWiki(props.urlPathName);
+    }
+}
 
 async function load() {
     data.value = await api.wiki.wikiItem.viewDirLocations(props.urlPathName)
@@ -44,7 +54,7 @@ onMounted(async()=>{
 <template>
     <h1>
         {{data?.Title}}-词条位置管理
-        <button class="ok" @click="router.back()">完成</button>
+        <button class="ok" @click="done()">完成</button>
     </h1>
     <div class="searching">
         <Search :source="api.etc.quickSearch.fileDir" @done="(_val,id)=>addTo(id)" :placeholder="'添加本词条到目录'"></Search>
